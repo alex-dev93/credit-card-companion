@@ -14,7 +14,241 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      cards: {
+        Row: {
+          alias: string
+          bank: string
+          color: string
+          created_at: string
+          id: string
+          last4: string | null
+          user_id: string
+        }
+        Insert: {
+          alias: string
+          bank: string
+          color?: string
+          created_at?: string
+          id?: string
+          last4?: string | null
+          user_id: string
+        }
+        Update: {
+          alias?: string
+          bank?: string
+          color?: string
+          created_at?: string
+          id?: string
+          last4?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      merchant_rules: {
+        Row: {
+          assignments: Json
+          card_id: string
+          created_at: string
+          id: string
+          signature: string
+          user_id: string
+        }
+        Insert: {
+          assignments: Json
+          card_id: string
+          created_at?: string
+          id?: string
+          signature: string
+          user_id: string
+        }
+        Update: {
+          assignments?: Json
+          card_id?: string
+          created_at?: string
+          id?: string
+          signature?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_rules_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      people: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          phone: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          phone?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      purchase_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          person_id: string
+          purchase_id: string
+          share_amount: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          person_id: string
+          purchase_id: string
+          share_amount: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          person_id?: string
+          purchase_id?: string
+          share_amount?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_assignments_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_assignments_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchases: {
+        Row: {
+          amount: number
+          assignment_status: string
+          card_id: string
+          created_at: string
+          current_installment: number
+          id: string
+          installment_amount: number
+          merchant: string
+          posted_at: string | null
+          signature: string
+          statement_id: string
+          total_installments: number
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          assignment_status?: string
+          card_id: string
+          created_at?: string
+          current_installment?: number
+          id?: string
+          installment_amount: number
+          merchant: string
+          posted_at?: string | null
+          signature: string
+          statement_id: string
+          total_installments?: number
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          assignment_status?: string
+          card_id?: string
+          created_at?: string
+          current_installment?: number
+          id?: string
+          installment_amount?: number
+          merchant?: string
+          posted_at?: string | null
+          signature?: string
+          statement_id?: string
+          total_installments?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      statements: {
+        Row: {
+          card_id: string
+          created_at: string
+          id: string
+          parsed_at: string | null
+          pdf_path: string | null
+          period: string
+          user_id: string
+        }
+        Insert: {
+          card_id: string
+          created_at?: string
+          id?: string
+          parsed_at?: string | null
+          pdf_path?: string | null
+          period: string
+          user_id: string
+        }
+        Update: {
+          card_id?: string
+          created_at?: string
+          id?: string
+          parsed_at?: string | null
+          pdf_path?: string | null
+          period?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statements_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
