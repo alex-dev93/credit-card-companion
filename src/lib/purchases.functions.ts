@@ -109,7 +109,7 @@ export const getMonthBreakdown = createServerFn({ method: "GET" })
 
     const { data: purchases } = await supabase
       .from("purchases")
-      .select("id, merchant, installment_amount, current_installment, total_installments, assignment_status, card_id, statement_id")
+      .select("id, merchant, installment_amount, current_installment, total_installments, assignment_status, card_id, statement_id, posted_at")
       .in("statement_id", stmtIds);
 
     const purIds = (purchases ?? []).map((p) => p.id);
