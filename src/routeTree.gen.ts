@@ -9,38 +9,138 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedTarjetasRouteImport } from './routes/_authenticated/tarjetas'
+import { Route as AuthenticatedSubirRouteImport } from './routes/_authenticated/subir'
+import { Route as AuthenticatedPersonasRouteImport } from './routes/_authenticated/personas'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedTarjetasCardIdRouteImport } from './routes/_authenticated/tarjetas.$cardId'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedTarjetasRoute = AuthenticatedTarjetasRouteImport.update({
+  id: '/tarjetas',
+  path: '/tarjetas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedSubirRoute = AuthenticatedSubirRouteImport.update({
+  id: '/subir',
+  path: '/subir',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPersonasRoute = AuthenticatedPersonasRouteImport.update({
+  id: '/personas',
+  path: '/personas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedTarjetasCardIdRoute =
+  AuthenticatedTarjetasCardIdRouteImport.update({
+    id: '/$cardId',
+    path: '/$cardId',
+    getParentRoute: () => AuthenticatedTarjetasRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/personas': typeof AuthenticatedPersonasRoute
+  '/subir': typeof AuthenticatedSubirRoute
+  '/tarjetas': typeof AuthenticatedTarjetasRouteWithChildren
+  '/tarjetas/$cardId': typeof AuthenticatedTarjetasCardIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/personas': typeof AuthenticatedPersonasRoute
+  '/subir': typeof AuthenticatedSubirRoute
+  '/tarjetas': typeof AuthenticatedTarjetasRouteWithChildren
+  '/tarjetas/$cardId': typeof AuthenticatedTarjetasCardIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/personas': typeof AuthenticatedPersonasRoute
+  '/_authenticated/subir': typeof AuthenticatedSubirRoute
+  '/_authenticated/tarjetas': typeof AuthenticatedTarjetasRouteWithChildren
+  '/_authenticated/tarjetas/$cardId': typeof AuthenticatedTarjetasCardIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/dashboard'
+    | '/personas'
+    | '/subir'
+    | '/tarjetas'
+    | '/tarjetas/$cardId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/login'
+    | '/dashboard'
+    | '/personas'
+    | '/subir'
+    | '/tarjetas'
+    | '/tarjetas/$cardId'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/login'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/personas'
+    | '/_authenticated/subir'
+    | '/_authenticated/tarjetas'
+    | '/_authenticated/tarjetas/$cardId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +148,80 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/tarjetas': {
+      id: '/_authenticated/tarjetas'
+      path: '/tarjetas'
+      fullPath: '/tarjetas'
+      preLoaderRoute: typeof AuthenticatedTarjetasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/subir': {
+      id: '/_authenticated/subir'
+      path: '/subir'
+      fullPath: '/subir'
+      preLoaderRoute: typeof AuthenticatedSubirRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/personas': {
+      id: '/_authenticated/personas'
+      path: '/personas'
+      fullPath: '/personas'
+      preLoaderRoute: typeof AuthenticatedPersonasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/tarjetas/$cardId': {
+      id: '/_authenticated/tarjetas/$cardId'
+      path: '/$cardId'
+      fullPath: '/tarjetas/$cardId'
+      preLoaderRoute: typeof AuthenticatedTarjetasCardIdRouteImport
+      parentRoute: typeof AuthenticatedTarjetasRoute
+    }
   }
 }
 
+interface AuthenticatedTarjetasRouteChildren {
+  AuthenticatedTarjetasCardIdRoute: typeof AuthenticatedTarjetasCardIdRoute
+}
+
+const AuthenticatedTarjetasRouteChildren: AuthenticatedTarjetasRouteChildren = {
+  AuthenticatedTarjetasCardIdRoute: AuthenticatedTarjetasCardIdRoute,
+}
+
+const AuthenticatedTarjetasRouteWithChildren =
+  AuthenticatedTarjetasRoute._addFileChildren(
+    AuthenticatedTarjetasRouteChildren,
+  )
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRoute
+  AuthenticatedSubirRoute: typeof AuthenticatedSubirRoute
+  AuthenticatedTarjetasRoute: typeof AuthenticatedTarjetasRouteWithChildren
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedPersonasRoute: AuthenticatedPersonasRoute,
+  AuthenticatedSubirRoute: AuthenticatedSubirRoute,
+  AuthenticatedTarjetasRoute: AuthenticatedTarjetasRouteWithChildren,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
