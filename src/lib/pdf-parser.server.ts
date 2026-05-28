@@ -2,15 +2,14 @@
 import { extractText, getDocumentProxy } from "unpdf";
 
 export interface ExtractedPurchase {
-  posted_at: string | null; // YYYY-MM-DD or null
+  posted_at: string | null;
   merchant: string;
-  amount: number; // total of the purchase
-  installment_amount: number; // amount charged this month
+  amount: number;
+  installment_amount: number;
   current_installment: number;
   total_installments: number;
 }
 
-// Normalize merchant name for signature matching
 export function normalizeMerchant(name: string): string {
   return name
     .toUpperCase()
@@ -29,94 +28,115 @@ export async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
   return Array.isArray(text) ? text.join("\n") : text;
 }
 
-// Heuristic parser that handles most Mexican bank statements (Banamex, BBVA, Banorte, Santander, etc.).
-// Looks for lines that contain a date, a merchant, a peso amount, and optionally MSI info.
+const MONTHS: Record<string, string> = {
+  ENERO: "01", ENE: "01", JAN: "01",
+  FEBRERO: "02", FEB: "02",
+  MARZO: "03", MAR: "03",
+  ABRIL: "04", ABR: "04", APR: "04",
+  MAYO: "05", MAY: "05",
+  JUNIO: "06", JUN: "06",
+  JULIO: "07", JUL: "07",
+  AGOSTO: "08", AGO: "08", AUG: "08",
+  SEPTIEMBRE: "09", SEP: "09", SET: "09",
+  OCTUBRE: "10", OCT: "10",
+  NOVIEMBRE: "11", NOV: "11",
+  DICIEMBRE: "12", DIC: "12", DEC: "12",
+};
+
+const MONTH_RE_SRC = "(?:Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre|Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)";
+
+// Robust parser for Mexican bank statements (AmEx, Banamex, BBVA, etc.)
+// Strategy: locate date anchors "DD de Mes" in the whole text, then slice between them.
 export function parseStatementText(rawText: string): ExtractedPurchase[] {
-  const lines = rawText
-    .split(/\r?\n/)
-    .map((l) => l.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
+  // Normalize whitespace
+  const text = rawText.replace(/\s+/g, " ").trim();
+
+  const dateAnchorRe = new RegExp(`\\b(\\d{1,2})\\s+de\\s+(${MONTH_RE_SRC})\\b`, "gi");
+  const matches: Array<{ idx: number; day: string; month: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = dateAnchorRe.exec(text)) !== null) {
+    matches.push({ idx: m.index, day: m[1], month: m[2] });
+  }
 
   const purchases: ExtractedPurchase[] = [];
+  const seen = new Set<string>();
+  const year = new Date().getFullYear();
 
-  // Patterns
-  const dateRe = /\b(\d{1,2})[\s/-](ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC|JAN|APR|AUG|DEC)[\s/-]?(\d{2,4})?\b/i;
-  const dateNumRe = /\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/;
-  const amountRe = /\$?\s?(-?\d{1,3}(?:,\d{3})*\.\d{2})\b/g;
-  const msiRe = /(\d{1,2})\s*\/\s*(\d{1,2})\s*(?:MSI|MESES|PAGOS|M\.?S\.?I\.?)?/i;
-  const msiPlanRe = /(?:MSI|MENSUALIDADES?|PAGO)\s*(\d{1,2})\s*(?:DE|\/)\s*(\d{1,2})/i;
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].idx;
+    const end = i + 1 < matches.length ? matches[i + 1].idx : text.length;
+    const chunk = text.slice(start, end).trim();
 
-  const monthMap: Record<string, string> = {
-    ENE: "01", JAN: "01", FEB: "02", MAR: "03", ABR: "04", APR: "04",
-    MAY: "05", JUN: "06", JUL: "07", AGO: "08", AUG: "08",
-    SEP: "09", OCT: "10", NOV: "11", DIC: "12", DEC: "12",
-  };
+    // Skip non-transaction chunks (payments, totals, headers)
+    if (/GRACIAS POR SU PAGO|PAGO RECIBIDO|MONTO A DIFERIR|TOTAL DE|SALDO ANTERIOR|FECHA L[IÍ]MITE|PERIODO DE FACTURACI[OÓ]N|PER[IÍ]ODO DE|FECHA DE CORTE|SIGUIENTE FECHA|D[IÍ]AS DEL PERIODO/i.test(chunk)) continue;
 
-  for (const line of lines) {
-    // Need at least one amount
-    const amounts = [...line.matchAll(amountRe)].map((m) => parseFloat(m[1].replace(/,/g, "")));
-    if (amounts.length === 0) continue;
-
-    // Skip totals/payments/interest lines
-    if (/\b(PAGO|INTERES|COMISION|IVA|SALDO|TOTAL|LIMITE|CORTE|ABONO)\b/i.test(line)) continue;
-
-    // Need a date
-    let posted_at: string | null = null;
-    const dm = line.match(dateRe);
-    const dnm = line.match(dateNumRe);
-    const now = new Date();
-    if (dm) {
-      const day = dm[1].padStart(2, "0");
-      const mon = monthMap[dm[2].toUpperCase()] || "01";
-      const year = dm[3] ? (dm[3].length === 2 ? `20${dm[3]}` : dm[3]) : String(now.getFullYear());
-      posted_at = `${year}-${mon}-${day}`;
-    } else if (dnm) {
-      const day = dnm[1].padStart(2, "0");
-      const mon = dnm[2].padStart(2, "0");
-      const year = dnm[3].length === 2 ? `20${dnm[3]}` : dnm[3];
-      posted_at = `${year}-${mon}-${day}`;
-    } else {
-      continue;
+    // Find amounts in chunk
+    const amountRe = /(\d{1,3}(?:,\d{3})*\.\d{2})/g;
+    const amts: Array<{ value: number; idx: number; end: number }> = [];
+    let am: RegExpExecArray | null;
+    while ((am = amountRe.exec(chunk)) !== null) {
+      amts.push({ value: parseFloat(am[1].replace(/,/g, "")), idx: am.index, end: am.index + am[0].length });
     }
+    if (amts.length === 0) continue;
 
-    // MSI detection
+    // Use the LAST amount as the charge for this transaction
+    const last = amts[amts.length - 1];
+
+    // If immediately followed by "CR" → it's a credit (payment/refund), skip
+    const after = chunk.slice(last.end, last.end + 6);
+    if (/^\s*CR\b/i.test(after)) continue;
+
+    // MSI detection: "CARGO X DE Y" or "X/Y MSI" or "X DE Y"
     let current_installment = 1;
     let total_installments = 1;
-    const msi = line.match(msiPlanRe) || line.match(msiRe);
-    if (msi) {
-      const a = parseInt(msi[1], 10);
-      const b = parseInt(msi[2], 10);
+    const cargo = chunk.match(/CARGO\s+(\d{1,2})\s+DE\s+(\d{1,2})/i)
+      || chunk.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*(?:MSI|MESES|PAGOS)/i)
+      || chunk.match(/MENSUALIDAD\s+(\d{1,2})\s+DE\s+(\d{1,2})/i);
+    if (cargo) {
+      const a = parseInt(cargo[1], 10);
+      const b = parseInt(cargo[2], 10);
       if (a > 0 && b > 0 && a <= b && b <= 60) {
         current_installment = a;
         total_installments = b;
       }
     }
 
-    // Last amount on the line is usually the charge for this month
-    const installment_amount = amounts[amounts.length - 1];
+    const installment_amount = last.value;
     if (installment_amount <= 0) continue;
+    const amount = total_installments > 1 ? +(installment_amount * total_installments).toFixed(2) : installment_amount;
 
-    const amount = total_installments > 1
-      ? +(installment_amount * total_installments).toFixed(2)
-      : installment_amount;
-
-    // Extract merchant — strip date, amounts, MSI fragments
-    let merchant = line
-      .replace(dateRe, "")
-      .replace(dateNumRe, "")
-      .replace(msiPlanRe, "")
-      .replace(msiRe, "")
-      .replace(amountRe, "")
+    // Extract merchant: text between date and first amount, stripping noise
+    const dateEnd = chunk.search(new RegExp(`\\d{1,2}\\s+de\\s+${MONTH_RE_SRC}`, "i"));
+    const firstAmt = amts[0];
+    let merchant = chunk.slice(0, firstAmt.idx).trim();
+    // Drop the leading "DD de Mes" portion (may repeat several times in some PDFs)
+    merchant = merchant.replace(new RegExp(`^(?:\\d{1,2}\\s+de\\s+${MONTH_RE_SRC}\\s*)+`, "i"), "").trim();
+    // Strip MSI/cargo fragments, RFC, REF, trailing punctuation
+    merchant = merchant
+      .replace(/CARGO\s+\d{1,2}\s+DE\s+\d{1,2}/gi, "")
+      .replace(/MENSUALIDAD\s+\d{1,2}\s+DE\s+\d{1,2}/gi, "")
+      .replace(/\d{1,2}\s*\/\s*\d{1,2}\s*(?:MSI|MESES|PAGOS)/gi, "")
+      .replace(/RFC[A-Z0-9]+/gi, "")
+      .replace(/\/?\s*REF\S+/gi, "")
       .replace(/\$\s?/g, "")
       .replace(/\s+/g, " ")
+      .replace(/^[\s\-\.|,]+|[\s\-\.|,]+$/g, "")
       .trim();
 
-    // Trim leading/trailing punctuation
-    merchant = merchant.replace(/^[\s\-\.|,]+|[\s\-\.|,]+$/g, "").trim();
     if (!merchant || merchant.length < 2) continue;
-
-    // Truncate very long
     if (merchant.length > 80) merchant = merchant.slice(0, 80);
+
+    // Skip obvious non-merchants
+    if (/^(SALDO|TOTAL|PAGO|ABONO|INTERES|COMISI|IVA|LIMITE)/i.test(merchant)) continue;
+
+    const day = matches[i].day.padStart(2, "0");
+    const mon = MONTHS[matches[i].month.toUpperCase()] || "01";
+    const posted_at = `${year}-${mon}-${day}`;
+
+    // Dedup (same chunk may be processed twice if regexes overlap)
+    const key = `${posted_at}|${normalizeMerchant(merchant)}|${installment_amount}|${total_installments}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
 
     purchases.push({
       posted_at,

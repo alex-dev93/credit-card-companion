@@ -1,6 +1,104 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { buildSignature } from "./pdf-parser.server";
+
+// Create a purchase manually (when PDF parsing misses it or for one-off entries)
+export const createManualPurchase = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      card_id: z.string().uuid(),
+      period: z.string().regex(/^\d{4}-\d{2}$/),
+      merchant: z.string().min(1).max(120),
+      installment_amount: z.number().positive(),
+      current_installment: z.number().int().min(1).max(60).default(1),
+      total_installments: z.number().int().min(1).max(60).default(1),
+      posted_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    }).parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    // Find or create statement for this card+period
+    let { data: stmt } = await supabase
+      .from("statements")
+      .select("id")
+      .eq("card_id", data.card_id)
+      .eq("period", data.period)
+      .maybeSingle();
+
+    if (!stmt) {
+      const { data: created, error: cErr } = await supabase
+        .from("statements")
+        .insert({ user_id: userId, card_id: data.card_id, period: data.period })
+        .select("id")
+        .single();
+      if (cErr || !created) throw new Error(cErr?.message || "No se pudo crear el periodo");
+      stmt = created;
+    }
+
+    const amount = data.total_installments > 1
+      ? +(data.installment_amount * data.total_installments).toFixed(2)
+      : data.installment_amount;
+
+    const signature = buildSignature({
+      merchant: data.merchant,
+      amount,
+      total_installments: data.total_installments,
+    });
+
+    // Check if a rule exists → auto-assign
+    const { data: rule } = await supabase
+      .from("merchant_rules")
+      .select("assignments")
+      .eq("card_id", data.card_id)
+      .eq("signature", signature)
+      .maybeSingle();
+    const hasRule = !!rule;
+
+    const { data: pur, error: pErr } = await supabase
+      .from("purchases")
+      .insert({
+        user_id: userId,
+        card_id: data.card_id,
+        statement_id: stmt.id,
+        posted_at: data.posted_at ?? null,
+        merchant: data.merchant,
+        amount,
+        installment_amount: data.installment_amount,
+        current_installment: data.current_installment,
+        total_installments: data.total_installments,
+        signature,
+        assignment_status: hasRule ? "assigned" : "pending",
+      })
+      .select("id")
+      .single();
+    if (pErr || !pur) throw new Error(pErr?.message || "No se pudo crear la compra");
+
+    if (hasRule && rule) {
+      const rows = (rule.assignments as Array<{ person_id: string; percent: number }>).map((r) => ({
+        user_id: userId,
+        purchase_id: pur.id,
+        person_id: r.person_id,
+        share_amount: +(data.installment_amount * (r.percent / 100)).toFixed(2),
+      }));
+      if (rows.length > 0) await supabase.from("purchase_assignments").insert(rows);
+    }
+
+    return { id: pur.id, autoAssigned: hasRule };
+  });
+
+export const deletePurchase = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ purchase_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    await supabase.from("purchase_assignments").delete().eq("purchase_id", data.purchase_id);
+    const { error } = await supabase.from("purchases").delete().eq("id", data.purchase_id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
 
 // Get pending purchases for a card+period (or statement)
 export const listPendingPurchases = createServerFn({ method: "GET" })
