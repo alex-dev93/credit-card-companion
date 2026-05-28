@@ -121,25 +121,33 @@ function CardDetail() {
           )}
 
           <div className="rounded-xl border bg-card">
-            <div className="flex items-center justify-between border-b p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
               <div className="font-semibold">Compras del periodo</div>
-              <button
-                onClick={async () => {
-                  const st = statements.find((s) => s.period === period);
-                  if (!st) return;
-                  if (!confirm("¿Eliminar este estado de cuenta y todas sus compras?")) return;
-                  await deleteFn({ data: { statement_id: st.id } });
-                  toast.success("Eliminado");
-                  setSelectedPeriod(null);
-                  refetchStmts();
-                }}
-                className="text-xs text-destructive hover:underline"
-              >
-                <Trash2 className="mr-1 inline h-3 w-3" />Eliminar periodo
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { setManualPeriod(period); setManualOpen(true); }}
+                  className="text-xs text-primary hover:underline"
+                >
+                  <Plus className="mr-1 inline h-3 w-3" />Agregar manual
+                </button>
+                <button
+                  onClick={async () => {
+                    const st = statements.find((s) => s.period === period);
+                    if (!st) return;
+                    if (!confirm("¿Eliminar este estado de cuenta y todas sus compras?")) return;
+                    await deleteFn({ data: { statement_id: st.id } });
+                    toast.success("Eliminado");
+                    setSelectedPeriod(null);
+                    refetchStmts();
+                  }}
+                  className="text-xs text-destructive hover:underline"
+                >
+                  <Trash2 className="mr-1 inline h-3 w-3" />Eliminar periodo
+                </button>
+              </div>
             </div>
             <ul className="divide-y">
-              {breakdown.purchases.length === 0 && <li className="p-6 text-center text-sm text-muted-foreground">Sin compras detectadas</li>}
+              {breakdown.purchases.length === 0 && <li className="p-6 text-center text-sm text-muted-foreground">Sin compras todavía. Usa "Agregar manual" para capturarlas.</li>}
               {breakdown.purchases.map((p) => (
                 <li key={p.id} className="p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -160,12 +168,26 @@ function CardDetail() {
                     </div>
                     <div className="text-right">
                       <div className="font-semibold">{fmt(p.installment_amount)}</div>
-                      <button
-                        onClick={() => setAssignFor(p.id)}
-                        className={`mt-1 text-xs underline ${p.assignment_status === "pending" ? "text-destructive font-semibold" : "text-primary"}`}
-                      >
-                        {p.assignment_status === "pending" ? "Asignar" : "Editar"}
-                      </button>
+                      <div className="mt-1 flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setAssignFor(p.id)}
+                          className={`text-xs underline ${p.assignment_status === "pending" ? "text-destructive font-semibold" : "text-primary"}`}
+                        >
+                          {p.assignment_status === "pending" ? "Asignar" : "Editar"}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm("¿Borrar esta compra?")) return;
+                            await delPurchaseFn({ data: { purchase_id: p.id } });
+                            toast.success("Borrada");
+                            refetchBreakdown();
+                          }}
+                          className="text-xs text-muted-foreground hover:text-destructive"
+                          title="Borrar"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </li>
@@ -183,6 +205,15 @@ function CardDetail() {
           onSaved={() => { refetchBreakdown(); setAssignFor(null); }}
         />
       )}
+
+      <ManualPurchaseDialog
+        cardId={cardId}
+        period={manualPeriod}
+        open={manualOpen}
+        onClose={() => setManualOpen(false)}
+        onSaved={() => { setManualOpen(false); refetchStmts(); refetchBreakdown(); }}
+      />
+
     </div>
   );
 }
