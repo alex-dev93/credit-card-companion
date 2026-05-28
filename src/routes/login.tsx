@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CreditCard, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,13 +19,25 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // If a session already exists (or arrives via OAuth callback), go to dashboard.
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (active && data.user) navigate({ to: "/dashboard", replace: true });
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session) navigate({ to: "/dashboard", replace: true });
+    });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, [navigate]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) return toast.error(error.message);
-    navigate({ to: "/dashboard" });
+    navigate({ to: "/dashboard", replace: true });
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -39,17 +51,19 @@ function LoginPage() {
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("¡Cuenta creada! Iniciando sesión...");
-    navigate({ to: "/dashboard" });
+    navigate({ to: "/dashboard", replace: true });
   };
 
   const handleGoogle = async () => {
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: window.location.origin + "/dashboard",
+      extraParams: { prompt: "select_account" },
     });
     if (result.error) return toast.error("No se pudo iniciar sesión con Google");
     if (result.redirected) return;
-    navigate({ to: "/dashboard" });
+    navigate({ to: "/dashboard", replace: true });
   };
+
 
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
