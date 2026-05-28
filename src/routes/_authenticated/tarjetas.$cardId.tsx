@@ -74,11 +74,15 @@ function CardDetail() {
       <div>
         <h2 className="mb-2 text-sm font-semibold uppercase text-muted-foreground">Periodos</h2>
         {statements.length === 0 ? (
-          <div className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
-            Aún no hay estados de cuenta. <Link to="/subir" className="text-primary underline">Sube uno</Link>.
+          <div className="space-y-3 rounded-lg border bg-card p-6 text-sm text-muted-foreground">
+            <div>Aún no hay estados de cuenta para esta tarjeta.</div>
+            <div className="flex flex-wrap gap-2">
+              <Link to="/subir"><Button size="sm" variant="outline">Subir PDF</Button></Link>
+              <Button size="sm" onClick={() => setManualOpen(true)}><Plus className="mr-1 h-4 w-4" />Capturar compras a mano</Button>
+            </div>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {statements.map((s) => (
               <button
                 key={s.id}
@@ -90,6 +94,7 @@ function CardDetail() {
             ))}
           </div>
         )}
+
       </div>
 
       {breakdown && period && (
