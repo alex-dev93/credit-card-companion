@@ -20,13 +20,13 @@ export const Route = createFileRoute("/_authenticated/tarjetas/$cardId")({
   component: CardDetail,
 });
 
+function CardDetail() {
+  const { cardId } = Route.useParams();
   const listFn = useServerFn(listStatements);
   const deleteFn = useServerFn(deleteStatement);
   const breakdownFn = useServerFn(getMonthBreakdown);
   const delPurchaseFn = useServerFn(deletePurchase);
 
-  const deleteFn = useServerFn(deleteStatement);
-  const breakdownFn = useServerFn(getMonthBreakdown);
 
   const { data: card } = useQuery({
     queryKey: ["card", cardId],
