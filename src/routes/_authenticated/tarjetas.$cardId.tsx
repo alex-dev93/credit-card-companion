@@ -50,8 +50,13 @@ function CardDetail() {
     queryFn: () => period ? breakdownFn({ data: { card_id: cardId, period } }) : null,
     enabled: !!period,
   });
-
   const [assignFor, setAssignFor] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualPeriod, setManualPeriod] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+
 
   return (
     <div className="space-y-6">
