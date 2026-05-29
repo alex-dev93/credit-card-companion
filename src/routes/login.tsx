@@ -143,8 +143,8 @@ function LoginPage() {
             <div className="h-px flex-1 bg-border/60" /> o continúa con <div className="h-px flex-1 bg-border/60" />
           </div>
 
-          <Button variant="outline" className="w-full border-border/60 bg-background/40" onClick={handleGoogle}>
-            Continuar con Google
+          <Button variant="outline" className="w-full border-border/60 bg-background/40" onClick={handleGoogle} disabled={googleLoading}>
+            {googleLoading ? "Conectando..." : "Continuar con Google"}
           </Button>
         </div>
 
