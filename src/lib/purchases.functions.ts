@@ -281,14 +281,18 @@ export const getPersonTotals = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data: stmts } = await supabase.from("statements").select("id").eq("period", data.period);
     const stmtIds = (stmts ?? []).map((s) => s.id);
-    if (stmtIds.length === 0) return [];
+    if (stmtIds.length === 0) return { people: [], total: 0, pendingTotal: 0, pendingCount: 0, purchaseCount: 0 };
 
     const { data: purs } = await supabase
       .from("purchases")
-      .select("id")
+      .select("id, installment_amount, assignment_status")
       .in("statement_id", stmtIds);
     const purIds = (purs ?? []).map((p) => p.id);
-    if (purIds.length === 0) return [];
+    const purchaseCount = purs?.length ?? 0;
+    const total = (purs ?? []).reduce((s, p) => s + Number(p.installment_amount), 0);
+    const pendingRows = (purs ?? []).filter((p) => p.assignment_status === "pending");
+    const pendingTotal = pendingRows.reduce((s, p) => s + Number(p.installment_amount), 0);
+    if (purIds.length === 0) return { people: [], total: 0, pendingTotal: 0, pendingCount: 0, purchaseCount: 0 };
 
     const { data: assignments } = await supabase
       .from("purchase_assignments")
@@ -306,5 +310,11 @@ export const getPersonTotals = createServerFn({ method: "GET" })
       ex.total += Number(a.share_amount);
       map.set(a.person_id, ex);
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    return {
+      people: Array.from(map.values()).sort((a, b) => b.total - a.total),
+      total: +total.toFixed(2),
+      pendingTotal: +pendingTotal.toFixed(2),
+      pendingCount: pendingRows.length,
+      purchaseCount,
+    };
   });
