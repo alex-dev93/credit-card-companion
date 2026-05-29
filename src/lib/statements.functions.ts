@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { extractTextFromPdf, parseStatementText, buildSignature } from "./pdf-parser.server";
+import { extractTextFromPdf, parseStatementText, buildSignature, extractCardLast4Candidates } from "./pdf-parser.server";
 
 // Upload + parse a statement PDF (base64-encoded for transport)
 export const uploadAndParseStatement = createServerFn({ method: "POST" })
@@ -20,7 +20,7 @@ export const uploadAndParseStatement = createServerFn({ method: "POST" })
     // 1. Verify card belongs to user
     const { data: card, error: cardErr } = await supabase
       .from("cards")
-      .select("id")
+      .select("id, last4")
       .eq("id", data.card_id)
       .single();
     if (cardErr || !card) throw new Error("Tarjeta no encontrada");
@@ -28,14 +28,22 @@ export const uploadAndParseStatement = createServerFn({ method: "POST" })
     // 2. Decode PDF
     const binary = Uint8Array.from(atob(data.pdf_base64), (c) => c.charCodeAt(0));
 
-    // 3. Upload to storage
+    // 3. Extract text first so we can validate the selected card before saving anything
+    const text = await extractTextFromPdf(binary.buffer as ArrayBuffer);
+    const cardDigits = extractCardLast4Candidates(text);
+    const expectedLast4 = card.last4?.replace(/\D/g, "");
+    if (expectedLast4?.length === 4 && cardDigits.length > 0 && !cardDigits.includes(expectedLast4)) {
+      throw new Error(`Este PDF parece ser de una tarjeta terminada en ${cardDigits.join(" o ")}, pero seleccionaste la tarjeta terminada en ${expectedLast4}. Elige la tarjeta correcta antes de subirlo.`);
+    }
+
+    // 4. Upload to storage
     const path = `${userId}/${data.card_id}/${data.period}-${Date.now()}.pdf`;
     const { error: upErr } = await supabase.storage
       .from("statements")
       .upload(path, binary, { contentType: "application/pdf", upsert: false });
     if (upErr) throw new Error(`No se pudo subir el PDF: ${upErr.message}`);
 
-    // 4. Create statement record (upsert by card+period)
+    // 5. Create statement record (upsert by card+period)
     const { data: existing } = await supabase
       .from("statements")
       .select("id")
@@ -68,22 +76,21 @@ export const uploadAndParseStatement = createServerFn({ method: "POST" })
       statementId = st.id;
     }
 
-    // 5. Extract text + parse
-    const text = await extractTextFromPdf(binary.buffer as ArrayBuffer);
+    // 6. Parse purchases
     const extracted = parseStatementText(text);
 
     if (extracted.length === 0) {
       return { statementId, parsed: 0, autoAssigned: 0, pending: 0, warning: "No se detectaron compras en el PDF. Puedes revisar el formato o capturarlas manualmente." };
     }
 
-    // 6. Load existing rules for this card
+    // 7. Load existing rules for this card
     const { data: rules } = await supabase
       .from("merchant_rules")
       .select("signature, assignments")
       .eq("card_id", data.card_id);
     const ruleMap = new Map((rules ?? []).map((r) => [r.signature, r.assignments as Array<{ person_id: string; percent: number }>]));
 
-    // 7. Insert purchases
+    // 8. Insert purchases
     let autoAssigned = 0;
     let pending = 0;
     const purchaseRows = extracted.map((p) => {
@@ -112,7 +119,7 @@ export const uploadAndParseStatement = createServerFn({ method: "POST" })
       .select("id, signature, installment_amount");
     if (purErr) throw new Error(`No se pudieron guardar las compras: ${purErr.message}`);
 
-    // 8. Apply rules → create assignments for matched purchases
+    // 9. Apply rules → create assignments for matched purchases
     const assignmentRows: Array<{
       user_id: string;
       purchase_id: string;

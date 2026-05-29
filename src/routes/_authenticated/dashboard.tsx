@@ -31,9 +31,10 @@ function Dashboard() {
     queryKey: ["personTotals", period],
     queryFn: () => fn({ data: { period } }),
   });
-  const { data: totals } = useSuspenseQuery(opts);
+  const { data: summary } = useSuspenseQuery(opts);
 
-  const grandTotal = totals.reduce((s, t) => s + t.total, 0);
+  const totals = summary.people;
+  const grandTotal = summary.total;
 
   return (
     <div className="space-y-8">
@@ -59,7 +60,7 @@ function Dashboard() {
               <div className="mt-3 font-display text-4xl font-bold tracking-tight">{formatCurrency(grandTotal)}</div>
               <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary-glow">
                 <TrendingUp className="h-3 w-3" />
-                {totals.length} persona{totals.length === 1 ? "" : "s"} con adeudo
+                {summary.purchaseCount} compra{summary.purchaseCount === 1 ? "" : "s"} detectada{summary.purchaseCount === 1 ? "" : "s"}
               </div>
             </div>
             <div className="grid h-12 w-12 place-items-center rounded-xl bg-gradient-gold shadow-gold">
@@ -100,8 +101,12 @@ function Dashboard() {
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary/10">
               <Upload className="h-6 w-6 text-primary-glow" />
             </div>
-            <p className="mt-4 text-sm text-muted-foreground">Aún no hay datos para este mes.</p>
-            <p className="text-xs text-muted-foreground">Configura tu primera tarjeta y sube un estado de cuenta para empezar.</p>
+            <p className="mt-4 text-sm text-muted-foreground">
+              {summary.purchaseCount > 0 ? `${summary.purchaseCount} compras detectadas, pendientes por asignar.` : "Aún no hay datos para este mes."}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {summary.purchaseCount > 0 ? `Total pendiente: ${formatCurrency(summary.pendingTotal)}.` : "Configura tu primera tarjeta y sube un estado de cuenta para empezar."}
+            </p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
               <Link to="/tarjetas"><Button variant="outline" size="sm" className="border-border/60"><CreditCard className="mr-2 h-4 w-4" />Tarjeta</Button></Link>
               <Link to="/personas"><Button variant="outline" size="sm" className="border-border/60"><Users className="mr-2 h-4 w-4" />Persona</Button></Link>

@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import appCss from "../styles.css?url";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 function NotFoundComponent() {
   return (
@@ -110,6 +111,7 @@ function AuthSync() {
   const queryClient = useQueryClient();
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      toast.dismiss("google-oauth");
       router.invalidate();
       queryClient.invalidateQueries();
     });

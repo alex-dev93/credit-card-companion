@@ -273,6 +273,41 @@ export const getMonthBreakdown = createServerFn({ method: "GET" })
     };
   });
 
+export const getCardSummaries = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data: stmts } = await supabase
+      .from("statements")
+      .select("id, card_id, period")
+      .order("period", { ascending: false });
+    const stmtIds = (stmts ?? []).map((s) => s.id);
+    if (stmtIds.length === 0) return [];
+
+    const { data: purchases } = await supabase
+      .from("purchases")
+      .select("statement_id, installment_amount, assignment_status")
+      .in("statement_id", stmtIds);
+
+    const statementById = new Map((stmts ?? []).map((s) => [s.id, s]));
+    const summaryByCard = new Map<string, { card_id: string; purchaseCount: number; pendingCount: number; total: number; latestPeriod: string | null }>();
+    for (const stmt of stmts ?? []) {
+      if (!summaryByCard.has(stmt.card_id)) summaryByCard.set(stmt.card_id, { card_id: stmt.card_id, purchaseCount: 0, pendingCount: 0, total: 0, latestPeriod: stmt.period });
+    }
+    for (const purchase of purchases ?? []) {
+      const stmt = statementById.get(purchase.statement_id);
+      if (!stmt) continue;
+      const current = summaryByCard.get(stmt.card_id) ?? { card_id: stmt.card_id, purchaseCount: 0, pendingCount: 0, total: 0, latestPeriod: stmt.period };
+      current.purchaseCount += 1;
+      current.total += Number(purchase.installment_amount);
+      if (purchase.assignment_status === "pending") current.pendingCount += 1;
+      if (!current.latestPeriod || stmt.period > current.latestPeriod) current.latestPeriod = stmt.period;
+      summaryByCard.set(stmt.card_id, current);
+    }
+
+    return Array.from(summaryByCard.values()).map((s) => ({ ...s, total: +s.total.toFixed(2) }));
+  });
+
 // Aggregate: how much does each person owe me right now (current period across all cards)
 export const getPersonTotals = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -281,14 +316,18 @@ export const getPersonTotals = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data: stmts } = await supabase.from("statements").select("id").eq("period", data.period);
     const stmtIds = (stmts ?? []).map((s) => s.id);
-    if (stmtIds.length === 0) return [];
+    if (stmtIds.length === 0) return { people: [], total: 0, pendingTotal: 0, pendingCount: 0, purchaseCount: 0 };
 
     const { data: purs } = await supabase
       .from("purchases")
-      .select("id")
+      .select("id, installment_amount, assignment_status")
       .in("statement_id", stmtIds);
     const purIds = (purs ?? []).map((p) => p.id);
-    if (purIds.length === 0) return [];
+    const purchaseCount = purs?.length ?? 0;
+    const total = (purs ?? []).reduce((s, p) => s + Number(p.installment_amount), 0);
+    const pendingRows = (purs ?? []).filter((p) => p.assignment_status === "pending");
+    const pendingTotal = pendingRows.reduce((s, p) => s + Number(p.installment_amount), 0);
+    if (purIds.length === 0) return { people: [], total: 0, pendingTotal: 0, pendingCount: 0, purchaseCount: 0 };
 
     const { data: assignments } = await supabase
       .from("purchase_assignments")
@@ -306,5 +345,11 @@ export const getPersonTotals = createServerFn({ method: "GET" })
       ex.total += Number(a.share_amount);
       map.set(a.person_id, ex);
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    return {
+      people: Array.from(map.values()).sort((a, b) => b.total - a.total),
+      total: +total.toFixed(2),
+      pendingTotal: +pendingTotal.toFixed(2),
+      pendingCount: pendingRows.length,
+      purchaseCount,
+    };
   });

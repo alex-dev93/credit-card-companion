@@ -1,8 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Plus, CreditCard, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { getCardSummaries } from "@/lib/purchases.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/tarjetas")({
-  component: CardsPage,
+  component: CardsRouteShell,
 });
 
 interface Card {
@@ -21,8 +23,15 @@ interface Card {
   color: string;
 }
 
+function CardsRouteShell() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname !== "/tarjetas") return <Outlet />;
+  return <CardsPage />;
+}
+
 function CardsPage() {
   const qc = useQueryClient();
+  const summariesFn = useServerFn(getCardSummaries);
   const { data: cards = [] } = useQuery({
     queryKey: ["cards"],
     queryFn: async () => {
@@ -34,6 +43,12 @@ function CardsPage() {
       return data as Card[];
     },
   });
+
+  const { data: summaries = [] } = useQuery({
+    queryKey: ["card-summaries"],
+    queryFn: () => summariesFn(),
+  });
+  const summaryByCard = new Map(summaries.map((s) => [s.card_id, s]));
 
   const [open, setOpen] = useState(false);
   const [bank, setBank] = useState("");
@@ -109,6 +124,11 @@ function CardsPage() {
               <div className="mt-8 font-mono text-lg">•••• {c.last4 || "····"}</div>
               <div className="mt-1 text-sm opacity-90">{c.bank}</div>
               <div className="font-semibold">{c.alias}</div>
+              {summaryByCard.get(c.id) && (
+                <div className="mt-3 rounded-md bg-background/20 px-3 py-2 text-xs">
+                  {summaryByCard.get(c.id)?.purchaseCount} compras · {summaryByCard.get(c.id)?.pendingCount} pendientes · {summaryByCard.get(c.id)?.latestPeriod}
+                </div>
+              )}
               <Link to="/tarjetas/$cardId" params={{ cardId: c.id }} className="absolute inset-0" aria-label="Ver detalle" />
             </div>
           ))}

@@ -22,6 +22,30 @@ export function buildSignature(p: { merchant: string; amount: number; total_inst
   return `${normalizeMerchant(p.merchant)}|${p.amount.toFixed(2)}|${p.total_installments}`;
 }
 
+export function extractCardLast4Candidates(rawText: string): string[] {
+  const text = rawText.replace(/\s+/g, " ").trim();
+  const candidates = new Set<string>();
+  const maskedRe = /(?:TARJETA|CARD|CUENTA|N[ÚU]MERO|NO\.?|CTA\.?)\D{0,45}(?:[Xx*•·]{2,}|\d{4}[\s-]*\d{2,6}[\s-]*)[\s-]*(\d{4})\b/gi;
+  const plainRe = /(?:TARJETA|CARD|CUENTA|N[ÚU]MERO|NO\.?|CTA\.?)\D{0,45}(\d[\d\s-]{11,22}\d)/gi;
+  const last4Re = /(?:TARJETA|CARD|CUENTA|N[ÚU]MERO|NO\.?|CTA\.?|TERMINACI[OÓ]N|TERMINA|[ÚU]LTIMOS)\D{0,60}(\d{4})\b/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = maskedRe.exec(text)) !== null) {
+    candidates.add(match[1]);
+  }
+
+  while ((match = last4Re.exec(text)) !== null) {
+    candidates.add(match[1]);
+  }
+
+  while ((match = plainRe.exec(text)) !== null) {
+    const digits = match[1].replace(/\D/g, "");
+    if (digits.length >= 12 && digits.length <= 19) candidates.add(digits.slice(-4));
+  }
+
+  return Array.from(candidates);
+}
+
 export async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
   const pdf = await getDocumentProxy(new Uint8Array(buffer));
   const { text } = await extractText(pdf, { mergePages: true });
