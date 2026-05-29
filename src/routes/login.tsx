@@ -18,6 +18,7 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // If a session already exists (or arrives via OAuth callback), go to dashboard.
   useEffect(() => {
@@ -55,6 +56,9 @@ function LoginPage() {
   };
 
   const handleGoogle = async () => {
+    if (googleLoading) return;
+    setGoogleLoading(true);
+    toast.loading("Conectando con Google...", { id: "google-oauth" });
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
@@ -62,12 +66,15 @@ function LoginPage() {
       });
       if (result.error) {
         console.error("Google OAuth error:", result.error);
-        return toast.error("No se pudo iniciar sesión con Google");
+        toast.error("No se pudo iniciar sesión con Google", { id: "google-oauth" });
+        setGoogleLoading(false);
+        return;
       }
-      // result.redirected → browser navigates to Google; nothing else to do.
+      // On success the browser redirects to Google; keep the loading state.
     } catch (err) {
       console.error("Google OAuth threw:", err);
-      toast.error("Error iniciando sesión con Google");
+      toast.error("Error iniciando sesión con Google", { id: "google-oauth" });
+      setGoogleLoading(false);
     }
   };
 
