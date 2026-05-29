@@ -55,13 +55,20 @@ function LoginPage() {
   };
 
   const handleGoogle = async () => {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/dashboard",
-      extraParams: { prompt: "select_account" },
-    });
-    if (result.error) return toast.error("No se pudo iniciar sesión con Google");
-    if (result.redirected) return;
-    navigate({ to: "/dashboard", replace: true });
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: { prompt: "select_account" },
+      });
+      if (result.error) {
+        console.error("Google OAuth error:", result.error);
+        return toast.error("No se pudo iniciar sesión con Google");
+      }
+      // result.redirected → browser navigates to Google; nothing else to do.
+    } catch (err) {
+      console.error("Google OAuth threw:", err);
+      toast.error("Error iniciando sesión con Google");
+    }
   };
 
 
