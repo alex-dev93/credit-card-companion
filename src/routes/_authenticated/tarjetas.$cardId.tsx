@@ -60,9 +60,14 @@ function CardDetail() {
 
   return (
     <div className="space-y-6">
-      <Link to="/tarjetas" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="mr-1 h-4 w-4" /> Volver
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link to="/tarjetas" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="mr-1 h-4 w-4" /> Volver
+        </Link>
+        <Button onClick={() => { setManualPeriod(period ?? manualPeriod); setManualOpen(true); }}>
+          <Plus className="mr-1 h-4 w-4" />Agregar compra manual
+        </Button>
+      </div>
       {card && (
         <div className="rounded-xl border p-5 text-white" style={{ background: `linear-gradient(135deg, ${card.color}, ${card.color}cc)` }}>
           <div className="text-sm opacity-90">{card.bank}</div>
@@ -70,6 +75,7 @@ function CardDetail() {
           <div className="mt-2 font-mono">•••• {card.last4 || "····"}</div>
         </div>
       )}
+
 
       <div>
         <h2 className="mb-2 text-sm font-semibold uppercase text-muted-foreground">Periodos</h2>
