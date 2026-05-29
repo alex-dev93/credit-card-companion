@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Plus, CreditCard, Trash2 } from "lucide-react";
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/tarjetas")({
-  component: CardsPage,
+  component: CardsRouteShell,
 });
 
 interface Card {
@@ -21,6 +21,12 @@ interface Card {
   alias: string;
   last4: string | null;
   color: string;
+}
+
+function CardsRouteShell() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname !== "/tarjetas") return <Outlet />;
+  return <CardsPage />;
 }
 
 function CardsPage() {
