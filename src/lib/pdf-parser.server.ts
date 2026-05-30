@@ -184,5 +184,34 @@ export function parseStatementText(rawText: string): ExtractedPurchase[] {
     });
   }
 
+  // Apply AmEx "Pagos Diferidos" auto-conversion: contado purchases whose amount
+  // matches a "MONTO A DIFERIR" credit become MSI (diferirMonths installments).
+  for (const target of diferirAmounts) {
+    // Try single match first
+    const idx = purchases.findIndex(
+      (p) => p.total_installments === 1 && Math.abs(p.amount - target) < 0.01
+    );
+    if (idx >= 0) {
+      const p = purchases[idx];
+      p.total_installments = diferirMonths;
+      p.current_installment = 1;
+      p.installment_amount = +(p.amount / diferirMonths).toFixed(2);
+      continue;
+    }
+    // Otherwise, try to match a combination of contado purchases summing to target
+    const candidates = purchases
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => p.total_installments === 1);
+    const sum = candidates.reduce((s, { p }) => s + p.amount, 0);
+    if (Math.abs(sum - target) < 0.01 && candidates.length > 0) {
+      for (const { p } of candidates) {
+        p.total_installments = diferirMonths;
+        p.current_installment = 1;
+        p.installment_amount = +(p.amount / diferirMonths).toFixed(2);
+      }
+    }
+  }
+
   return purchases;
 }
+
