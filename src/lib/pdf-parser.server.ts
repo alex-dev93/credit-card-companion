@@ -86,6 +86,18 @@ export function parseStatementText(rawText: string): ExtractedPurchase[] {
   const seen = new Set<string>();
   const year = new Date().getFullYear();
 
+  // Collect "MONTO A DIFERIR MESES EN AUTOMATICO" CR amounts (AmEx Pagos Diferidos auto-conversion).
+  // These credits offset contado purchases that were auto-converted to MSI (typically 3 months).
+  const diferirAmounts: number[] = [];
+  const diferirRe = /MONTO\s+A\s+DIFERIR[^0-9]{0,80}(\d{1,3}(?:,\d{3})*\.\d{2})\s*CR/gi;
+  let dm: RegExpExecArray | null;
+  while ((dm = diferirRe.exec(text)) !== null) {
+    diferirAmounts.push(parseFloat(dm[1].replace(/,/g, "")));
+  }
+  // Try to detect the number of months (e.g. "DIFERIDO A 3 MESES"); default to 3 (AmEx standard).
+  const monthsMatch = text.match(/DIFERIDO\s+A\s+(\d{1,2})\s+MESES/i) || text.match(/(\d{1,2})\s+MESES\s+EN\s+AUTOM[ÁA]TICO/i);
+  const diferirMonths = monthsMatch ? Math.max(2, Math.min(60, parseInt(monthsMatch[1], 10))) : 3;
+
   for (let i = 0; i < matches.length; i++) {
     const start = matches[i].idx;
     const end = i + 1 < matches.length ? matches[i + 1].idx : text.length;
@@ -172,5 +184,34 @@ export function parseStatementText(rawText: string): ExtractedPurchase[] {
     });
   }
 
+  // Apply AmEx "Pagos Diferidos" auto-conversion: contado purchases whose amount
+  // matches a "MONTO A DIFERIR" credit become MSI (diferirMonths installments).
+  for (const target of diferirAmounts) {
+    // Try single match first
+    const idx = purchases.findIndex(
+      (p) => p.total_installments === 1 && Math.abs(p.amount - target) < 0.01
+    );
+    if (idx >= 0) {
+      const p = purchases[idx];
+      p.total_installments = diferirMonths;
+      p.current_installment = 1;
+      p.installment_amount = +(p.amount / diferirMonths).toFixed(2);
+      continue;
+    }
+    // Otherwise, try to match a combination of contado purchases summing to target
+    const candidates = purchases
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => p.total_installments === 1);
+    const sum = candidates.reduce((s, { p }) => s + p.amount, 0);
+    if (Math.abs(sum - target) < 0.01 && candidates.length > 0) {
+      for (const { p } of candidates) {
+        p.total_installments = diferirMonths;
+        p.current_installment = 1;
+        p.installment_amount = +(p.amount / diferirMonths).toFixed(2);
+      }
+    }
+  }
+
   return purchases;
 }
+

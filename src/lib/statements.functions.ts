@@ -25,11 +25,14 @@ export const uploadAndParseStatement = createServerFn({ method: "POST" })
       .single();
     if (cardErr || !card) throw new Error("Tarjeta no encontrada");
 
-    // 2. Decode PDF
+    // 2. Decode PDF (keep two independent copies — Supabase storage upload may
+    // transfer/detach the underlying ArrayBuffer, which would break the parser).
     const binary = Uint8Array.from(atob(data.pdf_base64), (c) => c.charCodeAt(0));
+    const forParse = new Uint8Array(binary); // independent copy for unpdf
+    const forUpload = new Uint8Array(binary); // independent copy for storage
 
     // 3. Extract text first so we can validate the selected card before saving anything
-    const text = await extractTextFromPdf(binary.buffer as ArrayBuffer);
+    const text = await extractTextFromPdf(forParse.buffer as ArrayBuffer);
     const cardDigits = extractCardLast4Candidates(text);
     const expectedLast4 = card.last4?.replace(/\D/g, "");
     if (expectedLast4?.length === 4 && cardDigits.length > 0 && !cardDigits.includes(expectedLast4)) {
@@ -40,7 +43,7 @@ export const uploadAndParseStatement = createServerFn({ method: "POST" })
     const path = `${userId}/${data.card_id}/${data.period}-${Date.now()}.pdf`;
     const { error: upErr } = await supabase.storage
       .from("statements")
-      .upload(path, binary, { contentType: "application/pdf", upsert: false });
+      .upload(path, forUpload, { contentType: "application/pdf", upsert: false });
     if (upErr) throw new Error(`No se pudo subir el PDF: ${upErr.message}`);
 
     // 5. Create statement record (upsert by card+period)
