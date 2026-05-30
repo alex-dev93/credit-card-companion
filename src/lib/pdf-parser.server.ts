@@ -86,6 +86,18 @@ export function parseStatementText(rawText: string): ExtractedPurchase[] {
   const seen = new Set<string>();
   const year = new Date().getFullYear();
 
+  // Collect "MONTO A DIFERIR MESES EN AUTOMATICO" CR amounts (AmEx Pagos Diferidos auto-conversion).
+  // These credits offset contado purchases that were auto-converted to MSI (typically 3 months).
+  const diferirAmounts: number[] = [];
+  const diferirRe = /MONTO\s+A\s+DIFERIR[^0-9]{0,80}(\d{1,3}(?:,\d{3})*\.\d{2})\s*CR/gi;
+  let dm: RegExpExecArray | null;
+  while ((dm = diferirRe.exec(text)) !== null) {
+    diferirAmounts.push(parseFloat(dm[1].replace(/,/g, "")));
+  }
+  // Try to detect the number of months (e.g. "DIFERIDO A 3 MESES"); default to 3 (AmEx standard).
+  const monthsMatch = text.match(/DIFERIDO\s+A\s+(\d{1,2})\s+MESES/i) || text.match(/(\d{1,2})\s+MESES\s+EN\s+AUTOM[ÁA]TICO/i);
+  const diferirMonths = monthsMatch ? Math.max(2, Math.min(60, parseInt(monthsMatch[1], 10))) : 3;
+
   for (let i = 0; i < matches.length; i++) {
     const start = matches[i].idx;
     const end = i + 1 < matches.length ? matches[i + 1].idx : text.length;
