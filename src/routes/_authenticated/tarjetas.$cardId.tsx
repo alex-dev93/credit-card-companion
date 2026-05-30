@@ -189,7 +189,7 @@ function CardDetail() {
                         <div className="text-right">
                           <div className="font-semibold">{fmt(Number(p.installment_amount))}</div>
                           {p.total_installments > 1 && (
-                            <div className="text-[10px] text-muted-foreground">total {fmt(Number(p.amount))}</div>
+                            <div className="text-[10px] text-muted-foreground">total {fmt(Number(p.installment_amount) * p.total_installments)}</div>
                           )}
                           <div className="mt-1 flex items-center justify-end gap-2">
                             <button
