@@ -20,8 +20,14 @@ export type Database = {
           bank: string
           color: string
           created_at: string
+          credit_limit: number | null
+          cut_day: number | null
           id: string
           last4: string | null
+          min_payment: number | null
+          no_interest_payment: number | null
+          payment_day: number | null
+          reminders_enabled: boolean
           user_id: string
         }
         Insert: {
@@ -29,8 +35,14 @@ export type Database = {
           bank: string
           color?: string
           created_at?: string
+          credit_limit?: number | null
+          cut_day?: number | null
           id?: string
           last4?: string | null
+          min_payment?: number | null
+          no_interest_payment?: number | null
+          payment_day?: number | null
+          reminders_enabled?: boolean
           user_id: string
         }
         Update: {
@@ -38,8 +50,14 @@ export type Database = {
           bank?: string
           color?: string
           created_at?: string
+          credit_limit?: number | null
+          cut_day?: number | null
           id?: string
           last4?: string | null
+          min_payment?: number | null
+          no_interest_payment?: number | null
+          payment_day?: number | null
+          reminders_enabled?: boolean
           user_id?: string
         }
         Relationships: []

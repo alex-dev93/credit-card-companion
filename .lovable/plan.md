@@ -1,88 +1,64 @@
 
-# App de Control de Tarjetas Prestadas
+## Resumen
 
-App web (en español) donde subes el PDF del estado de cuenta de tus tarjetas y la app extrae cada compra, te pregunta a quién pertenece, recuerda las recurrentes (MSI) y mes con mes te dice exactamente cuánto te debe pagar cada persona.
+Voy a ampliar la app en 5 frentes. Para no romper nada, lo hago por etapas en este orden (apruébame el plan y arranco con el paso 1; el resto los sigo en cuanto termine cada uno).
 
-## Funcionalidades principales
+## 1. Tarjetas: límite, corte, pago, disponible
 
-1. **Login con email/contraseña + Google** (Lovable Cloud).
-2. **Gestión de tarjetas**: alta de varias tarjetas (banco, alias, últimos 4 dígitos, color).
-3. **Gestión de personas**: contactos a quienes les prestas la tarjeta (nombre, teléfono opcional).
-4. **Subida de estado de cuenta (PDF)**:
-   - Seleccionas la tarjeta y el mes.
-   - La app guarda el PDF y extrae las compras (fecha, comercio, monto, total de mensualidades si es MSI, número de mensualidad actual).
-5. **Asignación de compras**:
-   - Compra nueva → modal "¿De quién es esta compra?" con lista de personas + opción "agregar nueva" + opción "dividir entre varios" (selección múltiple con monto/proporción).
-   - Compra recurrente (mismo comercio + mismo monto MSI ya visto el mes pasado) → se asigna **automáticamente** a la misma persona; te muestra un resumen "Detectadas X recurrentes asignadas automáticamente" con opción de revisar.
-6. **Desglose mensual por tarjeta**:
-   - Total del mes, total por persona, detalle de qué compras componen el adeudo de cada quien, mensualidad N de M en MSI.
-   - Tu parte (lo que tú gastaste o no se ha asignado) separada.
-7. **Vista por persona**: cuánto te debe en total entre todas las tarjetas, histórico, y compras activas con cuántas mensualidades faltan.
-8. **Compartir**: botón para copiar/enviar por WhatsApp el resumen del mes a cada persona.
+- Agrego a la tabla `cards` los campos: `credit_limit`, `cut_day` (1–31), `payment_day` (1–31), `min_payment`, `no_interest_payment`.
+- En **Tarjetas → editar/crear** aparecen los nuevos campos.
+- En la vista de tarjeta calculo y muestro:
+  - **Disponible** = `credit_limit − saldo actual del periodo`
+  - **Próximo corte** y **próximo pago** (fechas reales, con badge si faltan ≤5 días o está vencido).
+  - Pago mínimo y pago para no generar intereses (cuando estén capturados).
 
-## Flujo del usuario
+## 2. Desglose por persona
 
-```text
-[Subir PDF] → [Parser extrae compras] → [Match con compras previas]
-                                                ↓
-                            ┌───── Recurrentes auto-asignadas ─────┐
-                            │                                       │
-                            └─── Nuevas → modal asignación ────────┘
-                                                ↓
-                          [Desglose: cuánto debe pagar cada persona]
-```
+- Nueva ruta **/personas/$personId** con:
+  - Total que debe, separado por tarjeta.
+  - Por tarjeta: lista de compras asignadas, MSI con "pago X de Y", contado, y fecha límite de pago de esa tarjeta.
+  - Totales por mes.
+- En **/personas** cada persona ya muestra su total con link al detalle.
 
-## Arquitectura
+## 3. Compartir PDF
 
-```text
-src/routes/
-  index.tsx                       → Landing/redirige a dashboard si hay sesión
-  login.tsx                       → Email+password + Google
-  _authenticated.tsx              → Guard de auth
-  _authenticated/
-    dashboard.tsx                 → Resumen global del mes en curso
-    tarjetas.tsx                  → Lista de tarjetas
-    tarjetas.$cardId.tsx          → Detalle: estados de cuenta + desglose mensual
-    personas.tsx                  → Lista de personas + cuánto debe cada una
-    personas.$personId.tsx        → Detalle por persona
-    subir.tsx                     → Subir nuevo estado de cuenta
+- Botón **"Descargar PDF"** en el detalle de persona.
+- Genero el PDF en el servidor (server function con `pdf-lib`) con:
+  - Encabezado (nombre, fecha)
+  - Tabla por tarjeta: compras, monto, MSI restantes, fecha de pago
+  - Totales y "qué pagar para no generar intereses"
+- Se descarga directo desde el navegador, listo para mandar por WhatsApp.
 
-src/lib/
-  statements.functions.ts         → uploadStatement, parseStatement, listStatements
-  purchases.functions.ts          → assignPurchase, splitPurchase, listMonthBreakdown
-  pdf-parser.server.ts            → extracción de transacciones del PDF
-  matcher.server.ts               → match de compras recurrentes (comercio+monto+MSI)
-```
+## 4. Recordatorios por WhatsApp (Twilio)
 
-## Modelo de datos (Lovable Cloud)
+- Conecto el conector de **Twilio** (te voy a pedir autorizar la conexión).
+- Agrego a `people` el campo `phone` (ya existe) y a `cards` un toggle `reminders_enabled`.
+- Cron job diario (`pg_cron`) que a las 9:00 AM revisa tarjetas con pago en ≤3 días y manda WhatsApp al dueño (y opcional a cada persona con su monto).
+- Importante: Twilio requiere número de WhatsApp Business aprobado o el sandbox de Twilio para pruebas. Te aviso los pasos exactos al conectar.
 
-- `cards` — id, user_id, bank, alias, last4, color
-- `people` — id, user_id, name, phone, color
-- `statements` — id, user_id, card_id, period (YYYY-MM), pdf_path, parsed_at
-- `purchases` — id, user_id, card_id, statement_id, posted_at, merchant, amount, total_installments, current_installment, installment_amount, signature (hash comercio+monto+MSI para matching), assignment_status
-- `purchase_assignments` — id, purchase_id, person_id, share_amount, share_percent (permite split entre varios)
-- `merchant_rules` — id, user_id, card_id, signature, person_id (regla aprendida para auto-asignar el próximo mes)
+## 5. Parser de PDFs: reforzar al 100%
 
-Todas con RLS por `user_id = auth.uid()`. Roles solo "owner" por ahora (sin necesidad de tabla `user_roles`).
+Aquí necesito tu ayuda porque cada banco tiene formato distinto. El parser actual usa regex genéricos y por eso a veces se salta líneas.
 
-## Detalles técnicos
+**Mi plan:**
+- Migrar a un parser híbrido: primero intento regex específicos por banco (AmEx, BBVA, Santander, Banamex, HSBC, Banorte) detectando el banco por el encabezado del PDF.
+- Si quedan líneas no clasificadas, las paso al modelo de **Lovable AI** (Gemini) con el texto crudo para que extraiga las compras restantes en JSON estructurado. Eso eleva la tasa cerca de 100%.
+- Muestro en la pantalla de subida un resumen: "X compras detectadas por regex, Y por IA, Z líneas ignoradas (con preview)".
 
-- **Parser de PDF**: el parsing corre en un `createServerFn` usando una librería JS compatible con el runtime Worker (p. ej. `unpdf`). Se valida el archivo (PDF, ≤10 MB) y se intenta extraer texto + tablas. Si la extracción no es confiable para un banco, se muestra al usuario las líneas detectadas para que confirme/corrija antes de guardar.
-- **Detección de recurrentes**: se calcula una `signature = hash(normalize(merchant) + monto_mensualidad + total_msi)`. Si esa firma ya tiene `merchant_rule` → auto-asigna; si no → la pone en cola de "pendientes de asignar".
-- **MSI (Meses Sin Intereses)**: si una compra dice "1/6", "2/6"... se calcula automáticamente cuántas faltan y se incluye en cada mes hasta llegar al total. La persona ve "Compra Liverpool $5,000 — pago 2 de 6 ($833.33/mes)".
-- **Pago de contado (1 sola exhibición)**: total_installments = 1, se cobra completo ese mes.
-- **División de compra**: el modal acepta personas + montos exactos o porcentajes; valida que la suma cuadre con el total.
-- **Almacenamiento del PDF**: bucket `statements` en Storage (privado, RLS).
-- **Seguridad**: validación con Zod en cada server function, RLS estricta, el bucket nunca público.
-- **Stack**: TanStack Start + React 19 + Tailwind v4 + shadcn/ui + Lovable Cloud (Supabase) + AI Gateway opcional más adelante si quisiéramos mejorar el parser con visión.
+**Para hacerlo bien necesito que me subas los PDFs que están fallando** (los que dicen "no se detectaron compras" o se saltan líneas). Sin el formato real no puedo afinar los regex.
 
-## Fuera de alcance (v1)
+## Detalle técnico
 
-- Recordatorios automáticos por WhatsApp/email (solo botón para compartir manual).
-- Pagos dentro de la app.
-- Soporte multi-usuario (cuentas compartidas).
-- Reportes históricos avanzados / exportación a Excel (puede venir después).
+- Migración SQL para `cards` (nuevas columnas) y `people.phone` ya existe.
+- `src/lib/share-pdf.functions.ts` con `createServerFn` que arma el PDF usando `pdf-lib` (ya soportado en Workers).
+- `src/lib/reminders.server.ts` + ruta `/api/public/hooks/payment-reminders` llamada por `pg_cron` que usa el connector gateway de Twilio.
+- Parser: refactor de `src/lib/pdf-parser.server.ts` en módulos por banco + fallback IA con `LOVABLE_API_KEY`.
 
-## Lo que necesito de ti antes de empezar
+## Orden de entrega
 
-Nada bloqueante. Voy a activar Lovable Cloud (login + base de datos + storage para los PDFs). Si después de la primera subida ves que el parser no entiende bien el formato de tu banco en particular, me dices qué banco es y ajustamos la extracción.
+1. Tarjetas (límite/corte/pago + UI de disponible) — chico, lo hago ya.
+2. Desglose por persona + PDF compartible — mediano.
+3. Refuerzo del parser (necesito tus PDFs).
+4. Recordatorios WhatsApp (necesito que conectes Twilio).
+
+¿Apruebas y arranco con el paso 1? Y de una vez, **súbeme los PDFs que están fallando** para tenerlos listos cuando lleguemos al paso 3.
