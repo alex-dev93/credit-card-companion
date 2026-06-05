@@ -2,13 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ArrowLeft, FileText, Trash2, Plus, X } from "lucide-react";
+import { ArrowLeft, FileText, Trash2, Plus, X, CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { listStatements, deleteStatement } from "@/lib/statements.functions";
 import { getMonthBreakdown, deletePurchase } from "@/lib/purchases.functions";
 import { AssignPurchaseDialog } from "@/components/AssignPurchaseDialog";
 import { ManualPurchaseDialog } from "@/components/ManualPurchaseDialog";
+import { nextDateForDay, daysUntil, fmtDate } from "@/lib/card-dates";
 import { toast } from "sonner";
 
 
