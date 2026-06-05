@@ -2,13 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ArrowLeft, FileText, Trash2, Plus, X } from "lucide-react";
+import { ArrowLeft, FileText, Trash2, Plus, X, CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { listStatements, deleteStatement } from "@/lib/statements.functions";
 import { getMonthBreakdown, deletePurchase } from "@/lib/purchases.functions";
 import { AssignPurchaseDialog } from "@/components/AssignPurchaseDialog";
 import { ManualPurchaseDialog } from "@/components/ManualPurchaseDialog";
+import { nextDateForDay, daysUntil, fmtDate } from "@/lib/card-dates";
 import { toast } from "sonner";
 
 
@@ -68,13 +69,47 @@ function CardDetail() {
           <Plus className="mr-1 h-4 w-4" />Agregar compra manual
         </Button>
       </div>
-      {card && (
-        <div className="rounded-xl border p-5 text-white" style={{ background: `linear-gradient(135deg, ${card.color}, ${card.color}cc)` }}>
-          <div className="text-sm opacity-90">{card.bank}</div>
-          <div className="text-xl font-semibold">{card.alias}</div>
-          <div className="mt-2 font-mono">•••• {card.last4 || "····"}</div>
-        </div>
-      )}
+      {card && (() => {
+        const used = breakdown?.total ?? 0;
+        const available = card.credit_limit != null ? Math.max(0, Number(card.credit_limit) - used) : null;
+        const cutDate = card.cut_day ? nextDateForDay(card.cut_day) : null;
+        const payDate = card.payment_day ? nextDateForDay(card.payment_day) : null;
+        const daysToPay = payDate ? daysUntil(payDate) : null;
+        return (
+          <div className="space-y-3">
+            <div className="rounded-xl border p-5 text-white" style={{ background: `linear-gradient(135deg, ${card.color}, ${card.color}cc)` }}>
+              <div className="text-sm opacity-90">{card.bank}</div>
+              <div className="text-xl font-semibold">{card.alias}</div>
+              <div className="mt-2 font-mono">•••• {card.last4 || "····"}</div>
+              {card.credit_limit != null && available != null && (
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-md bg-background/20 p-3 text-xs">
+                  <div><div className="opacity-80">Disponible</div><div className="text-base font-bold">{fmt(available)}</div></div>
+                  <div><div className="opacity-80">Límite</div><div className="text-base font-bold">{fmt(Number(card.credit_limit))}</div></div>
+                </div>
+              )}
+            </div>
+            {(cutDate || payDate) && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {cutDate && (
+                  <div className="rounded-lg border bg-card p-3 text-sm">
+                    <div className="flex items-center gap-1 text-xs uppercase text-muted-foreground"><CalendarClock className="h-3 w-3" />Próximo corte</div>
+                    <div className="mt-1 font-semibold">{fmtDate(cutDate)} · en {daysUntil(cutDate)}d</div>
+                  </div>
+                )}
+                {payDate && (
+                  <div className={`rounded-lg border p-3 text-sm ${daysToPay !== null && daysToPay <= 5 ? "border-destructive/50 bg-destructive/5" : "bg-card"}`}>
+                    <div className="flex items-center gap-1 text-xs uppercase text-muted-foreground"><CalendarClock className="h-3 w-3" />Próximo pago</div>
+                    <div className="mt-1 font-semibold">{fmtDate(payDate)} · en {daysToPay}d</div>
+                    {card.no_interest_payment != null && <div className="text-xs text-muted-foreground">Sin intereses: {fmt(Number(card.no_interest_payment))}</div>}
+                    {card.min_payment != null && <div className="text-xs text-muted-foreground">Mínimo: {fmt(Number(card.min_payment))}</div>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
 
 
       <div>

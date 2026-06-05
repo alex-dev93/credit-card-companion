@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Trash2, Phone } from "lucide-react";
+import { Plus, Trash2, Phone, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +10,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/personas")({
-  component: PeoplePage,
+  component: PeopleShell,
 });
 
 interface Person { id: string; name: string; phone: string | null; color: string }
+
+function PeopleShell() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (pathname !== "/personas") return <Outlet />;
+  return <PeoplePage />;
+}
 
 function PeoplePage() {
   const qc = useQueryClient();
@@ -69,7 +75,7 @@ function PeoplePage() {
             <DialogHeader><DialogTitle>Nueva persona</DialogTitle></DialogHeader>
             <form onSubmit={(e) => { e.preventDefault(); createMut.mutate(); }} className="space-y-3">
               <div><Label>Nombre</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
-              <div><Label>Teléfono (opcional)</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" /></div>
+              <div><Label>Teléfono (opcional, para WhatsApp)</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="+52..." /></div>
               <div><Label>Color</Label><Input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-10 w-20" /></div>
               <Button type="submit" className="w-full" disabled={createMut.isPending}>Guardar</Button>
             </form>
@@ -85,14 +91,15 @@ function PeoplePage() {
         <ul className="divide-y rounded-xl border bg-card">
           {people.map((p) => (
             <li key={p.id} className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
+              <Link to="/personas/$personId" params={{ personId: p.id }} className="flex flex-1 items-center gap-3">
                 <div className="h-10 w-10 rounded-full" style={{ background: p.color }} />
-                <div>
+                <div className="flex-1">
                   <div className="font-medium">{p.name}</div>
                   {p.phone && <div className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" />{p.phone}</div>}
                 </div>
-              </div>
-              <button onClick={() => { if (confirm(`¿Eliminar a ${p.name}?`)) delMut.mutate(p.id); }} className="text-muted-foreground hover:text-destructive">
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </Link>
+              <button onClick={() => { if (confirm(`¿Eliminar a ${p.name}?`)) delMut.mutate(p.id); }} className="ml-3 text-muted-foreground hover:text-destructive">
                 <Trash2 className="h-4 w-4" />
               </button>
             </li>

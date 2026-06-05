@@ -17,6 +17,7 @@ import { Route as AuthenticatedSubirRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedPersonasRouteImport } from './routes/_authenticated/personas'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedTarjetasCardIdRouteImport } from './routes/_authenticated/tarjetas.$cardId'
+import { Route as AuthenticatedPersonasPersonIdRouteImport } from './routes/_authenticated/personas.$personId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -58,23 +59,31 @@ const AuthenticatedTarjetasCardIdRoute =
     path: '/$cardId',
     getParentRoute: () => AuthenticatedTarjetasRoute,
   } as any)
+const AuthenticatedPersonasPersonIdRoute =
+  AuthenticatedPersonasPersonIdRouteImport.update({
+    id: '/$personId',
+    path: '/$personId',
+    getParentRoute: () => AuthenticatedPersonasRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/personas': typeof AuthenticatedPersonasRoute
+  '/personas': typeof AuthenticatedPersonasRouteWithChildren
   '/subir': typeof AuthenticatedSubirRoute
   '/tarjetas': typeof AuthenticatedTarjetasRouteWithChildren
+  '/personas/$personId': typeof AuthenticatedPersonasPersonIdRoute
   '/tarjetas/$cardId': typeof AuthenticatedTarjetasCardIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/personas': typeof AuthenticatedPersonasRoute
+  '/personas': typeof AuthenticatedPersonasRouteWithChildren
   '/subir': typeof AuthenticatedSubirRoute
   '/tarjetas': typeof AuthenticatedTarjetasRouteWithChildren
+  '/personas/$personId': typeof AuthenticatedPersonasPersonIdRoute
   '/tarjetas/$cardId': typeof AuthenticatedTarjetasCardIdRoute
 }
 export interface FileRoutesById {
@@ -83,9 +92,10 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/personas': typeof AuthenticatedPersonasRoute
+  '/_authenticated/personas': typeof AuthenticatedPersonasRouteWithChildren
   '/_authenticated/subir': typeof AuthenticatedSubirRoute
   '/_authenticated/tarjetas': typeof AuthenticatedTarjetasRouteWithChildren
+  '/_authenticated/personas/$personId': typeof AuthenticatedPersonasPersonIdRoute
   '/_authenticated/tarjetas/$cardId': typeof AuthenticatedTarjetasCardIdRoute
 }
 export interface FileRouteTypes {
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/personas'
     | '/subir'
     | '/tarjetas'
+    | '/personas/$personId'
     | '/tarjetas/$cardId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/personas'
     | '/subir'
     | '/tarjetas'
+    | '/personas/$personId'
     | '/tarjetas/$cardId'
   id:
     | '__root__'
@@ -116,6 +128,7 @@ export interface FileRouteTypes {
     | '/_authenticated/personas'
     | '/_authenticated/subir'
     | '/_authenticated/tarjetas'
+    | '/_authenticated/personas/$personId'
     | '/_authenticated/tarjetas/$cardId'
   fileRoutesById: FileRoutesById
 }
@@ -183,8 +196,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTarjetasCardIdRouteImport
       parentRoute: typeof AuthenticatedTarjetasRoute
     }
+    '/_authenticated/personas/$personId': {
+      id: '/_authenticated/personas/$personId'
+      path: '/$personId'
+      fullPath: '/personas/$personId'
+      preLoaderRoute: typeof AuthenticatedPersonasPersonIdRouteImport
+      parentRoute: typeof AuthenticatedPersonasRoute
+    }
   }
 }
+
+interface AuthenticatedPersonasRouteChildren {
+  AuthenticatedPersonasPersonIdRoute: typeof AuthenticatedPersonasPersonIdRoute
+}
+
+const AuthenticatedPersonasRouteChildren: AuthenticatedPersonasRouteChildren = {
+  AuthenticatedPersonasPersonIdRoute: AuthenticatedPersonasPersonIdRoute,
+}
+
+const AuthenticatedPersonasRouteWithChildren =
+  AuthenticatedPersonasRoute._addFileChildren(
+    AuthenticatedPersonasRouteChildren,
+  )
 
 interface AuthenticatedTarjetasRouteChildren {
   AuthenticatedTarjetasCardIdRoute: typeof AuthenticatedTarjetasCardIdRoute
@@ -201,14 +234,14 @@ const AuthenticatedTarjetasRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRoute
+  AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRouteWithChildren
   AuthenticatedSubirRoute: typeof AuthenticatedSubirRoute
   AuthenticatedTarjetasRoute: typeof AuthenticatedTarjetasRouteWithChildren
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedPersonasRoute: AuthenticatedPersonasRoute,
+  AuthenticatedPersonasRoute: AuthenticatedPersonasRouteWithChildren,
   AuthenticatedSubirRoute: AuthenticatedSubirRoute,
   AuthenticatedTarjetasRoute: AuthenticatedTarjetasRouteWithChildren,
 }
@@ -225,13 +258,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
