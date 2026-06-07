@@ -110,8 +110,9 @@ function AuthSync() {
   const router = useRouter();
   const queryClient = useQueryClient();
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       toast.dismiss("google-oauth");
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") return;
       router.invalidate();
       queryClient.invalidateQueries();
     });
