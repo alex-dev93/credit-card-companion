@@ -1,19 +1,21 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
+import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated")({
-  ssr: false,
-  beforeLoad: async () => {
-    if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/login" });
-  },
   component: AuthLayout,
 });
 
 function AuthLayout() {
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) navigate({ to: "/login", replace: true });
+  }, [loading, navigate, user]);
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -25,11 +27,27 @@ function AuthLayout() {
           </header>
           <main className="flex-1 px-4 py-6 sm:px-8 sm:py-10">
             <div className="mx-auto w-full max-w-6xl">
-              <Outlet />
+              {loading || !user ? <PageLoading /> : <Outlet />}
             </div>
           </main>
         </div>
       </div>
     </SidebarProvider>
+  );
+}
+
+function PageLoading() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+        <div className="h-8 w-64 animate-pulse rounded bg-muted" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-40 animate-pulse rounded-xl border bg-card" />
+        ))}
+      </div>
+    </div>
   );
 }
